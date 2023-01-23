@@ -4,11 +4,10 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 
-	"github.com/dop251/goja"
-	"github.com/dop251/goja_nodejs/console"
-	"github.com/dop251/goja_nodejs/require"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -19,8 +18,8 @@ import (
 // scores - Array(Object({tag:string, value: string}}))
 // metadata - Array(Object({ key:string, value:string, type:string }))
 
-//go:embed babel.min.js
-var babelBundle string
+// //go:embed babel.min.js
+// var babelBundle string
 
 type ApiCatalogConfig struct {
 	Title string
@@ -32,9 +31,10 @@ func Run() {
 	var apiURL string
 	var configFilePath string
 
-	rootCmd := &cobra.Command{
-		Use:   "apic",
-		Short: "One shot cli for your api schema security,performance and quality check",
+	var runCmd = &cobra.Command{
+		Use:   "run",
+		Short: "Run the apic tests",
+		Long:  "Marathon apic tests",
 		Run: func(cmd *cobra.Command, args []string) {
 			// find config file and load up the config
 			var config ApiCatalogConfig
@@ -52,57 +52,96 @@ func Run() {
 
 			fmt.Println(config.Title)
 			fmt.Println(apiType)
+
+			switch apiType {
+			case "openapi":
+				// load the document and validate
+				// for openapi we use kin-openapi package
+				// Kudos: https://github.com/getkin/kin-openapi
+				url, err := url.ParseRequestURI(apiURL)
+				isValidURL := err == nil
+				loader := openapi3.NewLoader()
+
+				if isValidURL {
+					doc, err := loader.LoadFromURI(url)
+					if err != nil {
+						log.Fatal("failed to parse document\n", err)
+					}
+					err = doc.Validate(loader.Context)
+					if err != nil {
+						log.Fatal("Invalid swagger document", err)
+					}
+				} else {
+					doc, err := loader.LoadFromFile(apiURL)
+					if err != nil {
+						log.Fatal("failed to parse document\n", err)
+					}
+					err = doc.Validate(loader.Context)
+					if err != nil {
+						log.Fatal("Invalid swagger document\n", err)
+					}
+				}
+
+			default:
+				log.Fatal("Error api type not supported: ", apiType)
+			}
 		},
 	}
 
-	rootCmd.PersistentFlags().StringVarP(&apiType, "apiType", "a", "", "Your API Type. Allowed values: rest | graphql")
-	rootCmd.MarkPersistentFlagRequired("apiType")
+	runCmd.Flags().StringVarP(&apiType, "apiType", "a", "", "Your API Type. Allowed values: rest | graphql")
+	runCmd.MarkFlagRequired("apiType")
 
-	rootCmd.PersistentFlags().StringVar(&apiURL, "url", "", "URL or local file containing spec sheet")
-	rootCmd.MarkPersistentFlagRequired("url")
+	runCmd.PersistentFlags().StringVar(&apiURL, "url", "", "URL or local file containing spec sheet")
+	runCmd.MarkPersistentFlagRequired("url")
 
-	rootCmd.PersistentFlags().StringVar(&configFilePath, "config", ".", "Path to apic configuration file")
+	runCmd.PersistentFlags().StringVar(&configFilePath, "config", ".", "Path to apic configuration file")
 
-	reqistry := new(require.Registry)
+	// reqistry := new(require.Registry)
 
-	runtime := goja.New()
-	reqistry.Enable(runtime)
-	console.Enable(runtime)
+	// runtime := goja.New()
+	// reqistry.Enable(runtime)
+	// console.Enable(runtime)
 
-	babelProgram, err := goja.Compile("babel.js", babelBundle, false)
+	// babelProgram, err := goja.Compile("babel.js", babelBundle, false)
 
-	if err != nil {
-		panic(err)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// _, err = runtime.RunProgram(babelProgram)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// var babelTransformer goja.Callable
+
+	// babel := runtime.Get("Babel")
+	// if err := runtime.ExportTo(babel.ToObject(runtime).Get("transform"), &babelTransformer); err != nil {
+	// 	panic(err)
+	// }
+
+	// jsRawCode := `
+	// 	const b = 10;
+	// `
+
+	// v, err := babelTransformer(babel, runtime.ToValue(jsRawCode), runtime.ToValue(map[string]interface{}{
+	// 	"presets": []string{"env"},
+	// }))
+
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// code := v.ToObject(runtime).Get("code").String()
+	// if _, err := runtime.RunString(code); err != nil {
+	// 	panic(err)
+	// }
+
+	rootCmd := &cobra.Command{
+		Use:   "apic",
+		Short: "One shot cli for your api schema security,performance and quality check",
 	}
-
-	_, err = runtime.RunProgram(babelProgram)
-	if err != nil {
-		panic(err)
-	}
-
-	var babelTransformer goja.Callable
-
-	babel := runtime.Get("Babel")
-	if err := runtime.ExportTo(babel.ToObject(runtime).Get("transform"), &babelTransformer); err != nil {
-		panic(err)
-	}
-
-	jsRawCode := `
-   		const b = 10;
-    `
-
-	v, err := babelTransformer(babel, runtime.ToValue(jsRawCode), runtime.ToValue(map[string]interface{}{
-		"presets": []string{"env"},
-	}))
-
-	if err != nil {
-		panic(err)
-	}
-
-	code := v.ToObject(runtime).Get("code").String()
-	if _, err := runtime.RunString(code); err != nil {
-		panic(err)
-	}
+	rootCmd.AddCommand(runCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

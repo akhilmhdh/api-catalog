@@ -1,5 +1,5 @@
 apc:
-	go run cmd/cli/main.go 
+	go run cmd/cli/main.go run
 
-test:
-	go run cmd/cli/main.go -a graphql --url ./test --config ./cmd/cli 
+test-json:
+	go run cmd/cli/main.go run -a openapi --url ./test/petstore-v3.json --config ./test
