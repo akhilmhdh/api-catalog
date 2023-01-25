@@ -18,9 +18,6 @@ import (
 // scores - Array(Object({tag:string, value: string}}))
 // metadata - Array(Object({ key:string, value:string, type:string }))
 
-// //go:embed babel.min.js
-// var babelBundle string
-
 type ApiCatalogConfig struct {
 	Title string
 }
@@ -53,6 +50,11 @@ func Run() {
 			fmt.Println(config.Title)
 			fmt.Println(apiType)
 
+			cmp, err := NewCompiler()
+			if err != nil {
+				log.Fatal("Error in setting up compiler: ", err)
+			}
+
 			switch apiType {
 			case "openapi":
 				// load the document and validate
@@ -60,10 +62,11 @@ func Run() {
 				// Kudos: https://github.com/getkin/kin-openapi
 				url, err := url.ParseRequestURI(apiURL)
 				isValidURL := err == nil
+				var doc *openapi3.T
 				loader := openapi3.NewLoader()
 
 				if isValidURL {
-					doc, err := loader.LoadFromURI(url)
+					doc, err = loader.LoadFromURI(url)
 					if err != nil {
 						log.Fatal("failed to parse document\n", err)
 					}
@@ -72,13 +75,37 @@ func Run() {
 						log.Fatal("Invalid swagger document", err)
 					}
 				} else {
-					doc, err := loader.LoadFromFile(apiURL)
+					doc, err = loader.LoadFromFile(apiURL)
 					if err != nil {
 						log.Fatal("failed to parse document\n", err)
 					}
 					err = doc.Validate(loader.Context)
 					if err != nil {
 						log.Fatal("Invalid swagger document\n", err)
+					}
+				}
+
+				// this will soon be a root config dir specially for apic plugins
+				files, err := os.ReadDir("./internal/builtin")
+				if err != nil {
+					log.Fatal("Failed to open builtin plugins dir: ", err)
+				}
+
+				for _, file := range files {
+					if !file.IsDir() {
+						data, err := os.ReadFile(fmt.Sprintf("./internal/builtin/%s", file.Name()))
+						if err != nil {
+							log.Fatal("Failed to open builtin plugin file: ", file.Name())
+						}
+						code, err := cmp.Transform(string(data))
+						if err != nil {
+							log.Fatal("Failed to : ", err)
+						}
+
+						err = cmp.Run(code)
+						if err != nil {
+							log.Fatal("Error in program: ", err)
+						}
 					}
 				}
 
@@ -95,47 +122,6 @@ func Run() {
 	runCmd.MarkPersistentFlagRequired("url")
 
 	runCmd.PersistentFlags().StringVar(&configFilePath, "config", ".", "Path to apic configuration file")
-
-	// reqistry := new(require.Registry)
-
-	// runtime := goja.New()
-	// reqistry.Enable(runtime)
-	// console.Enable(runtime)
-
-	// babelProgram, err := goja.Compile("babel.js", babelBundle, false)
-
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// _, err = runtime.RunProgram(babelProgram)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// var babelTransformer goja.Callable
-
-	// babel := runtime.Get("Babel")
-	// if err := runtime.ExportTo(babel.ToObject(runtime).Get("transform"), &babelTransformer); err != nil {
-	// 	panic(err)
-	// }
-
-	// jsRawCode := `
-	// 	const b = 10;
-	// `
-
-	// v, err := babelTransformer(babel, runtime.ToValue(jsRawCode), runtime.ToValue(map[string]interface{}{
-	// 	"presets": []string{"env"},
-	// }))
-
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// code := v.ToObject(runtime).Get("code").String()
-	// if _, err := runtime.RunString(code); err != nil {
-	// 	panic(err)
-	// }
 
 	rootCmd := &cobra.Command{
 		Use:   "apic",
