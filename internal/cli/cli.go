@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/goccy/go-json"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -55,6 +56,11 @@ func Run() {
 				log.Fatal("Error in setting up compiler: ", err)
 			}
 
+			pluginManager := NewPluginManager()
+			if err := pluginManager.LoadBuiltinPlugin(); err != nil {
+				log.Fatal(err)
+			}
+
 			switch apiType {
 			case "openapi":
 				// load the document and validate
@@ -70,42 +76,41 @@ func Run() {
 					if err != nil {
 						log.Fatal("failed to parse document\n", err)
 					}
-					err = doc.Validate(loader.Context)
-					if err != nil {
-						log.Fatal("Invalid swagger document", err)
-					}
 				} else {
 					doc, err = loader.LoadFromFile(apiURL)
 					if err != nil {
 						log.Fatal("failed to parse document\n", err)
 					}
-					err = doc.Validate(loader.Context)
-					if err != nil {
-						log.Fatal("Invalid swagger document\n", err)
+				}
+
+				err = doc.Validate(loader.Context)
+				if err != nil {
+					log.Fatal("Invalid swagger document\n", err)
+				}
+
+				runCfg := &RunConfig{Type: apiType}
+				if rawJson, err := doc.MarshalJSON(); err == nil {
+					if err = json.Unmarshal(rawJson, &runCfg.Data); err != nil {
+						log.Fatal(err)
 					}
 				}
+				// iterate over rule
+				for _, p := range pluginManager.rules {
+					// read original code
+					rawCode, err := pluginManager.ReadPluginCode(p.File)
+					if err != nil {
+						log.Fatal("Failed to : ", err)
+					}
+					// babel transpile
+					code, err := cmp.Transform(rawCode)
+					if err != nil {
+						log.Fatal("Failed to : ", err)
+					}
 
-				// this will soon be a root config dir specially for apic plugins
-				files, err := os.ReadDir("./internal/builtin")
-				if err != nil {
-					log.Fatal("Failed to open builtin plugins dir: ", err)
-				}
-
-				for _, file := range files {
-					if !file.IsDir() {
-						data, err := os.ReadFile(fmt.Sprintf("./internal/builtin/%s", file.Name()))
-						if err != nil {
-							log.Fatal("Failed to open builtin plugin file: ", file.Name())
-						}
-						code, err := cmp.Transform(string(data))
-						if err != nil {
-							log.Fatal("Failed to : ", err)
-						}
-
-						err = cmp.Run(code)
-						if err != nil {
-							log.Fatal("Error in program: ", err)
-						}
+					// execute the code
+					err = cmp.Run(code, runCfg)
+					if err != nil {
+						log.Fatal("Error in program: ", err)
 					}
 				}
 

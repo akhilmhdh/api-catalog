@@ -3,9 +3,12 @@ package cli
 import (
 	_ "embed"
 	"fmt"
+	"log"
+	"os"
 	"sync"
 
 	"github.com/dop251/goja"
+	"gopkg.in/yaml.v3"
 )
 
 //go:embed babel.min.js
@@ -37,7 +40,6 @@ type Babel struct {
 }
 
 // console logger
-
 func newBabel() (*Babel, error) {
 	compileBabelOnce.Do(func() {
 		globalBabelCode, errGlobalBabelCode = goja.Compile("babel.js", babelBundle, false)
@@ -52,6 +54,7 @@ func newBabel() (*Babel, error) {
 	}
 
 	runtime := goja.New()
+	runtime.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 	runtime.Set("console", map[string]func(goja.FunctionCall) goja.Value{
 		"log":   logger,
 		"error": logger,
@@ -97,7 +100,12 @@ func (c *Compiler) Transform(rawCode string) (*goja.Program, error) {
 	return pgm, nil
 }
 
-func (c *Compiler) Run(pgm *goja.Program) error {
+type RunConfig struct {
+	Data map[string]interface{} `json:"data"`
+	Type string                 `json:"type"`
+}
+
+func (c *Compiler) Run(pgm *goja.Program, cfg *RunConfig) error {
 	v, err := c.babel.runtime.RunProgram(pgm)
 	if err != nil {
 		return err
@@ -116,51 +124,67 @@ func (c *Compiler) Run(pgm *goja.Program) error {
 	if !ok {
 		return fmt.Errorf("failed to get exports")
 	}
-	call(goja.Undefined())
+	call(goja.Undefined(), c.babel.runtime.ToValue(cfg))
 	return nil
 }
 
-// https://github.com/grafana/k6/blob/a2a5b39017e371f4d72b85d4d10cbc1ac449f1ff/js/bundle.go#L328
-// func StartRuntime() (*Runtime, error) {
-// 	reqistry := new(require.Registry)
-
-// 	runtime := goja.New()
-// 	reqistry.Enable(runtime)
-// 	console.Enable(runtime)
-
-// 	babelProgram, err := goja.Compile("babel.js", babelBundle, false)
-
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	_, err = runtime.RunProgram(babelProgram)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	var babelTransformer goja.Callable
-
-// 	babel := runtime.Get("Babel")
-// 	if err := runtime.ExportTo(babel.ToObject(runtime).Get("transform"), &babelTransformer); err != nil {
-// 		return nil, err
-// 	}
-
-// 	v, err := babelTransformer(babel, runtime.ToValue(jsRawCode), runtime.ToValue(map[string]interface{}{
-// 		"presets": []string{"env"},
-// 	}))
-
-// 	// if err != nil {
-// 	// 	panic(err)
-// 	// }
-
-// 	// code := v.ToObject(runtime).Get("code").String()
-// 	// if _, err := runtime.RunString(code); err != nil {
-// 	// 	panic(err)
-// 	// }
-// 	return &Runtime{babelTransformer: func(code string) error {} },nil
-// }
-
 // Builtin will packaged as zip
 // Installed on runtime
-type Plugins struct{}
+type PluginManager struct {
+	rules map[string]struct{ File string }
+}
+
+type PluginConfig struct {
+	Rules []PluginConfigRule `yaml:"rules"`
+}
+
+type PluginConfigRule struct {
+	Name string `yaml:"name"`
+	File string `yam:"file"`
+}
+
+func NewPluginManager() *PluginManager {
+	return &PluginManager{
+		rules: map[string]struct{ File string }{},
+	}
+}
+
+func (p *PluginManager) LoadBuiltinPlugin() error {
+	// this will soon be a root config dir specially for apic plugins
+	files, err := os.ReadDir("./internal/builtin")
+	if err != nil {
+		log.Fatal("Failed to open builtin plugins dir: ", err)
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			data, err := os.ReadFile(fmt.Sprintf("./internal/builtin/%s/config.yaml", file.Name()))
+			if err != nil {
+				return fmt.Errorf("failed to open builtin plugin file. Config file not found %s", file.Name())
+			}
+
+			// load plugin config
+			var pluginCfg PluginConfig
+			if err = yaml.Unmarshal(data, &pluginCfg); err != nil {
+				return err
+			}
+
+			// load up the rules
+			for _, r := range pluginCfg.Rules {
+				filePath := fmt.Sprintf("./internal/builtin/%s/%s", file.Name(), r.File)
+				p.rules[r.Name] = struct{ File string }{File: filePath}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (p *PluginManager) ReadPluginCode(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	return string(data), nil
+}

@@ -1,0 +1,3 @@
+rules:
+  - name: "status_code_validator"
+    file: "index.js"
