@@ -3,7 +3,7 @@ module github.com/1-platform/api-catalog
 go 1.18
 
 require (
-	github.com/dop251/goja v0.0.0-20230122112309-96b1610dd4f7
+	github.com/dop251/goja v0.0.0-20230128084908-78b980256d04
 	github.com/getkin/kin-openapi v0.113.0
 	github.com/goccy/go-json v0.10.0
 	github.com/pelletier/go-toml/v2 v2.0.6
