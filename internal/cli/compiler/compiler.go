@@ -1,14 +1,14 @@
-package cli
+// This compiler was inspired from grafana k6 project
+// A big kudos goes to goja library
+// Do check it out: https://github.com/dop251/goja
+package compiler
 
 import (
 	_ "embed"
 	"fmt"
-	"log"
-	"os"
 	"sync"
 
 	"github.com/dop251/goja"
-	"gopkg.in/yaml.v3"
 )
 
 //go:embed babel.min.js
@@ -24,7 +24,7 @@ type Compiler struct {
 	babel *Babel
 }
 
-func NewCompiler() (*Compiler, error) {
+func New() (*Compiler, error) {
 	b, err := newBabel()
 	if err != nil {
 		return nil, err
@@ -41,6 +41,8 @@ type Babel struct {
 
 // console logger
 func newBabel() (*Babel, error) {
+	// load up  and compile babel file only once in a run
+	// for concurrency
 	compileBabelOnce.Do(func() {
 		globalBabelCode, errGlobalBabelCode = goja.Compile("babel.js", babelBundle, false)
 	})
@@ -48,6 +50,9 @@ func newBabel() (*Babel, error) {
 	if errGlobalBabelCode != nil {
 		return nil, errGlobalBabelCode
 	}
+
+	// JS console statement support
+	// TODO(akhilmhdh): change this to centralized logger one
 	logger := func(fc goja.FunctionCall) goja.Value {
 		fmt.Println(fc.Arguments)
 		return nil
@@ -61,13 +66,12 @@ func newBabel() (*Babel, error) {
 		"warn":  logger,
 	})
 
-	// runtime.Set("exports", map[string]interface{}{})
-
 	_, err := runtime.RunProgram(globalBabelCode)
 	if err != nil {
 		return nil, err
 	}
 
+	// REF: https://babeljs.io/docs/en/babel-standalone
 	babel := runtime.Get("Babel")
 	b := &Babel{runtime: runtime, this: babel}
 
@@ -79,16 +83,18 @@ func newBabel() (*Babel, error) {
 }
 
 func (c *Compiler) Transform(rawCode string) (*goja.Program, error) {
-
+	// change the code to commonjs using babel
 	v, err := c.babel.transformer(c.babel.this, c.babel.runtime.ToValue(rawCode), c.babel.runtime.ToValue(map[string]interface{}{
 		"presets": []string{"env"},
 	}))
-
 	if err != nil {
 		return nil, err
 	}
 
 	code := v.ToObject(c.babel.runtime).Get("code").String()
+	// wrap the commonjs module inside a function
+	// This will private scope each functions we execute
+	// Compile to a goja program thus can be executed anytime with goja
 	pgm, err := goja.Compile("test", fmt.Sprintf(`(function(exports){
 		%s
 		})`, code), true)
@@ -100,9 +106,10 @@ func (c *Compiler) Transform(rawCode string) (*goja.Program, error) {
 	return pgm, nil
 }
 
+// these are the data that will be given to js code execution env
 type RunConfig struct {
-	Data map[string]interface{} `json:"data"`
-	Type string                 `json:"type"`
+	ApiSchema map[string]interface{} `json:"schema"`
+	Type      string                 `json:"type"`
 }
 
 func (c *Compiler) Run(pgm *goja.Program, cfg *RunConfig) error {
@@ -110,81 +117,25 @@ func (c *Compiler) Run(pgm *goja.Program, cfg *RunConfig) error {
 	if err != nil {
 		return err
 	}
+
+	// the wrapped function is preparing to execute
 	call, ok := goja.AssertFunction(v)
 	if !ok {
 		return fmt.Errorf("failed to get exports")
 	}
 
+	// the argument export
 	export := c.babel.runtime.NewObject()
-	// runtime.Set("exports", map[string]interface{}{})
+	// execute the wrapper function now export contains default function
 	call(goja.Undefined(), export)
 
+	// execute the default function with configuration passed
 	fn := export.Get("default")
 	call, ok = goja.AssertFunction(fn)
 	if !ok {
 		return fmt.Errorf("failed to get exports")
 	}
 	call(goja.Undefined(), c.babel.runtime.ToValue(cfg))
-	return nil
-}
-
-// Builtin will packaged as zip
-// Installed on runtime
-type PluginManager struct {
-	rules map[string]struct{ File string }
-}
-
-type PluginConfig struct {
-	Rules []PluginConfigRule `yaml:"rules"`
-}
-
-type PluginConfigRule struct {
-	Name string `yaml:"name"`
-	File string `yam:"file"`
-}
-
-func NewPluginManager() *PluginManager {
-	return &PluginManager{
-		rules: map[string]struct{ File string }{},
-	}
-}
-
-func (p *PluginManager) LoadBuiltinPlugin() error {
-	// this will soon be a root config dir specially for apic plugins
-	files, err := os.ReadDir("./internal/builtin")
-	if err != nil {
-		log.Fatal("Failed to open builtin plugins dir: ", err)
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			data, err := os.ReadFile(fmt.Sprintf("./internal/builtin/%s/config.yaml", file.Name()))
-			if err != nil {
-				return fmt.Errorf("failed to open builtin plugin file. Config file not found %s", file.Name())
-			}
-
-			// load plugin config
-			var pluginCfg PluginConfig
-			if err = yaml.Unmarshal(data, &pluginCfg); err != nil {
-				return err
-			}
-
-			// load up the rules
-			for _, r := range pluginCfg.Rules {
-				filePath := fmt.Sprintf("./internal/builtin/%s/%s", file.Name(), r.File)
-				p.rules[r.Name] = struct{ File string }{File: filePath}
-			}
-		}
-	}
 
 	return nil
-}
-
-func (p *PluginManager) ReadPluginCode(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-
-	return string(data), nil
 }

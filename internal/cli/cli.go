@@ -2,13 +2,15 @@ package cli
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 
+	"github.com/1-platform/api-catalog/internal/cli/compiler"
+	"github.com/1-platform/api-catalog/internal/cli/filereader"
+	"github.com/1-platform/api-catalog/internal/cli/pluginmanager"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/goccy/go-json"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -22,6 +24,8 @@ import (
 type ApiCatalogConfig struct {
 	Title string
 }
+
+var errNotAbsolute = errors.New("path is not absolute")
 
 func Run() {
 	// cli flags
@@ -51,51 +55,43 @@ func Run() {
 			fmt.Println(config.Title)
 			fmt.Println(apiType)
 
-			cmp, err := NewCompiler()
+			fr, err := filereader.New()
+			if err != nil {
+				log.Fatal("Failed to load filereader\n", err)
+			}
+
+			// set up the js script compiler
+			cmp, err := compiler.New()
 			if err != nil {
 				log.Fatal("Error in setting up compiler: ", err)
 			}
 
-			pluginManager := NewPluginManager()
+			// loading up the plugins and corresponding rules
+			pluginManager := pluginmanager.New(fr)
 			if err := pluginManager.LoadBuiltinPlugin(); err != nil {
 				log.Fatal(err)
 			}
 
+			var apiSchemaFile map[string]interface{}
+			fd, err := fr.ReadFileAdvanced(apiURL, &apiSchemaFile)
+			if err != nil {
+				log.Fatal("Fail to read file\n", err)
+			}
+
 			switch apiType {
 			case "openapi":
-				// load the document and validate
-				// for openapi we use kin-openapi package
-				// Kudos: https://github.com/getkin/kin-openapi
-				url, err := url.ParseRequestURI(apiURL)
-				isValidURL := err == nil
-				var doc *openapi3.T
 				loader := openapi3.NewLoader()
-
-				if isValidURL {
-					doc, err = loader.LoadFromURI(url)
-					if err != nil {
-						log.Fatal("failed to parse document\n", err)
-					}
-				} else {
-					doc, err = loader.LoadFromFile(apiURL)
-					if err != nil {
-						log.Fatal("failed to parse document\n", err)
-					}
-				}
-
-				err = doc.Validate(loader.Context)
+				doc, err := loader.LoadFromData(fd.Raw)
 				if err != nil {
-					log.Fatal("Invalid swagger document\n", err)
+					log.Fatal(err)
+				}
+				if err := doc.Validate(loader.Context); err != nil {
+					log.Fatal(err)
 				}
 
-				runCfg := &RunConfig{Type: apiType}
-				if rawJson, err := doc.MarshalJSON(); err == nil {
-					if err = json.Unmarshal(rawJson, &runCfg.Data); err != nil {
-						log.Fatal(err)
-					}
-				}
+				runCfg := &compiler.RunConfig{Type: apiType, ApiSchema: apiSchemaFile}
 				// iterate over rule
-				for _, p := range pluginManager.rules {
+				for _, p := range pluginManager.Rules {
 					// read original code
 					rawCode, err := pluginManager.ReadPluginCode(p.File)
 					if err != nil {
