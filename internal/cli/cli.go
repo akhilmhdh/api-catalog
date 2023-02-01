@@ -10,6 +10,7 @@ import (
 	"github.com/1-platform/api-catalog/internal/cli/compiler"
 	"github.com/1-platform/api-catalog/internal/cli/filereader"
 	"github.com/1-platform/api-catalog/internal/cli/pluginmanager"
+	"github.com/1-platform/api-catalog/internal/cli/reportmanager"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -40,7 +41,6 @@ func Run() {
 		Run: func(cmd *cobra.Command, args []string) {
 			// find config file and load up the config
 			var config ApiCatalogConfig
-
 			viper.AddConfigPath(configFilePath)
 			viper.SetConfigName("apic")
 
@@ -51,9 +51,6 @@ func Run() {
 			if err := viper.Unmarshal(&config); err != nil {
 				log.Fatal("Error in config file", err)
 			}
-
-			fmt.Println(config.Title)
-			fmt.Println(apiType)
 
 			fr, err := filereader.New()
 			if err != nil {
@@ -78,6 +75,9 @@ func Run() {
 				log.Fatal("Fail to read file\n", err)
 			}
 
+			rm := reportmanager.New()
+
+			// validation
 			switch apiType {
 			case "openapi":
 				loader := openapi3.NewLoader()
@@ -88,30 +88,45 @@ func Run() {
 				if err := doc.Validate(loader.Context); err != nil {
 					log.Fatal(err)
 				}
-
-				runCfg := &compiler.RunConfig{Type: apiType, ApiSchema: apiSchemaFile}
 				// iterate over rule
-				for _, p := range pluginManager.Rules {
-					// read original code
-					rawCode, err := pluginManager.ReadPluginCode(p.File)
-					if err != nil {
-						log.Fatal("Failed to : ", err)
-					}
-					// babel transpile
-					code, err := cmp.Transform(rawCode)
-					if err != nil {
-						log.Fatal("Failed to : ", err)
-					}
-
-					// execute the code
-					err = cmp.Run(code, runCfg)
-					if err != nil {
-						log.Fatal("Error in program: ", err)
-					}
-				}
-
 			default:
 				log.Fatal("Error api type not supported: ", apiType)
+			}
+
+			for rule, p := range pluginManager.Rules {
+				// read original code
+				rawCode, err := pluginManager.ReadPluginCode(p.File)
+				if err != nil {
+					log.Fatal("Failed to : ", err)
+				}
+				// babel transpile
+				code, err := cmp.Transform(rawCode)
+				if err != nil {
+					log.Fatal("Failed to : ", err)
+				}
+
+				// creating config for each rule because we also want rule name of each score and report setter
+				runCfg := &compiler.RunConfig{
+					Type:      apiType,
+					ApiSchema: apiSchemaFile,
+					SetScore: func(category string, score float32) {
+						rm.SetScore(rule, reportmanager.Score{Category: category, Value: score})
+					},
+					Report: func(body *reportmanager.ReportDef) {
+						rm.PushReport(rule, *body)
+					},
+				}
+
+				// execute the code
+				err = cmp.Run(code, runCfg)
+				if err != nil {
+					log.Fatal("Error in program: ", err)
+				}
+			}
+
+			scores := rm.GetTotalScore()
+			for _, score := range scores {
+				fmt.Printf("Category: %s, Score: %f \n", score.Category, score.Value)
 			}
 		},
 	}

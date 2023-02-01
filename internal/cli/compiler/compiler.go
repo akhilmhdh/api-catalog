@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/1-platform/api-catalog/internal/cli/reportmanager"
 	"github.com/dop251/goja"
 )
 
@@ -106,10 +107,17 @@ func (c *Compiler) Transform(rawCode string) (*goja.Program, error) {
 	return pgm, nil
 }
 
+type KeyValuePairs struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 // these are the data that will be given to js code execution env
 type RunConfig struct {
-	ApiSchema map[string]interface{} `json:"schema"`
-	Type      string                 `json:"type"`
+	ApiSchema map[string]interface{}               `json:"schema"`
+	Type      string                               `json:"type"`
+	SetScore  func(category string, score float32) `json:"setScore"`
+	Report    func(body *reportmanager.ReportDef)  `json:"report"`
 }
 
 func (c *Compiler) Run(pgm *goja.Program, cfg *RunConfig) error {
