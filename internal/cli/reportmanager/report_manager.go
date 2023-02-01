@@ -11,6 +11,8 @@ type Headers struct {
 }
 
 type ReportDef struct {
+	// whether its a warning or error
+	Level    string         `json:"level"`
 	Method   string         `json:"method"`
 	Path     string         `json:"path"`
 	Message  string         `json:"message"`
@@ -32,6 +34,7 @@ func New() ReportManager {
 func (r ReportManager) PushReport(ruleName string, data ReportDef) {
 	if val, ok := r[ruleName]; ok {
 		val.Reports = append(val.Reports, data)
+		r[ruleName] = val
 	} else {
 		r[ruleName] = Report{Reports: []ReportDef{data}}
 	}
@@ -40,6 +43,7 @@ func (r ReportManager) PushReport(ruleName string, data ReportDef) {
 func (r ReportManager) SetScore(ruleName string, score Score) {
 	if val, ok := r[ruleName]; ok {
 		val.Score = score
+		r[ruleName] = val
 	} else {
 		r[ruleName] = Report{Score: score}
 	}

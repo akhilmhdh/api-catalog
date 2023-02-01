@@ -125,8 +125,17 @@ func Run() {
 			}
 
 			scores := rm.GetTotalScore()
+
+			fmt.Println("-----------------------------------------")
 			for _, score := range scores {
 				fmt.Printf("Category: %s, Score: %f \n", score.Category, score.Value)
+			}
+
+			for _, r := range rm {
+				for _, report := range r.Reports {
+					fmt.Println("-----------------------------------------")
+					fmt.Printf("Method: %s\n Path: %s\n Message: %s\n", report.Method, report.Path, report.Message)
+				}
 			}
 		},
 	}

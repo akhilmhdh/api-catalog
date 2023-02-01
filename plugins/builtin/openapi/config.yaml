@@ -1,0 +1,7 @@
+rules:
+  - name: "status_code_check"
+    file: "status_code_check.js"
+  - name: "body_in_get_req"
+    file: "body_in_get_req.js"
+  - name: "case_checker"
+    file: "case_checker.js"

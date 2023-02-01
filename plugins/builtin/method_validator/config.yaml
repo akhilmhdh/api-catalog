@@ -1,3 +1,0 @@
-rules:
-  - name: "method_validator"
-    file: "index.js"
