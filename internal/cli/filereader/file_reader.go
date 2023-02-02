@@ -88,23 +88,32 @@ func urlFromFilePath(path string) (*url.URL, error) {
 	}, nil
 }
 
-func (fr *FileReader) ReadFile(location string, data any) error {
-	_, err := fr.ReadFileAdvanced(location, data)
-	return err
-}
-
-type FileData struct {
-	Ext string
-	Raw []byte
-}
-
-// to read a file and parse it
-// also return various other data like raw buffer, extension etc
-func (fr *FileReader) ReadFileAdvanced(location string, data any) (*FileData, error) {
-	if reflect.ValueOf(data).Kind() != reflect.Ptr {
-		return nil, errors.New("data must be a pointer")
+func (fr *FileReader) ParseFile(raw []byte, data any, ext string) error {
+	switch ext {
+	case "json":
+		if err := json.Unmarshal(raw, data); err != nil {
+			return err
+		}
+	case "yaml":
+		if err := yaml.Unmarshal(raw, data); err != nil {
+			return err
+		}
+	case "yml":
+		if err := yaml.Unmarshal(raw, data); err != nil {
+			return err
+		}
+	case "toml":
+		if err := toml.Unmarshal(raw, data); err != nil {
+			return err
+		}
+	default:
+		return ErrExtNotSupported
 	}
 
+	return nil
+}
+
+func (fr *FileReader) ReadIntoRawBytes(location string) ([]byte, error) {
 	// if location is not url convert to proper url with file:// format
 	// We use golang http client to get files both in system and from web
 	url, err := url.ParseRequestURI(location)
@@ -130,34 +139,45 @@ func (fr *FileReader) ReadFileAdvanced(location string, data any) (*FileData, er
 		return nil, fmt.Errorf("failed to get the file in %s - status code %d", location, resp.StatusCode)
 	}
 
-	fd := &FileData{}
-	fd.Raw, err = ioutil.ReadAll(resp.Body)
+	return ioutil.ReadAll(resp.Body)
+}
+
+// to read a file and parse it
+func (fr *FileReader) ReadFile(location string, data any) error {
+	if reflect.ValueOf(data).Kind() != reflect.Ptr {
+		return errors.New("data must be a pointer")
+	}
+
+	raw, err := fr.ReadIntoRawBytes(location)
+	if err != nil {
+		return err
+	}
+
+	ext := filepath.Ext(location)[1:] // .json -> json
+
+	if err := fr.ParseFile(raw, data, ext); err != nil {
+		return err
+	}
+	return nil
+}
+
+// this is just for a special case in whic swagger validation requires raw buffer
+// for all other usecases use ReadFile to get parsed go structure
+// or the GetRaw for getting raw bytes data
+func (fr *FileReader) ReadFileReturnRaw(location string, data any) ([]byte, error) {
+	if reflect.ValueOf(data).Kind() != reflect.Ptr {
+		return nil, errors.New("data must be a pointer")
+	}
+
+	raw, err := fr.ReadIntoRawBytes(location)
 	if err != nil {
 		return nil, err
 	}
 
-	fd.Ext = filepath.Ext(location)[1:] // .json -> json
-
-	switch fd.Ext {
-	case "json":
-		if err = json.Unmarshal(fd.Raw, data); err != nil {
-			return nil, err
-		}
-	case "yaml":
-		if err = yaml.Unmarshal(fd.Raw, data); err != nil {
-			return nil, err
-		}
-	case "yml":
-		if err = yaml.Unmarshal(fd.Raw, data); err != nil {
-			return nil, err
-		}
-	case "toml":
-		if err = toml.Unmarshal(fd.Raw, data); err != nil {
-			return nil, err
-		}
-	default:
-		return nil, ErrExtNotSupported
+	ext := filepath.Ext(location)[1:] // .json -> json
+	if err := fr.ParseFile(raw, data, ext); err != nil {
+		return nil, err
 	}
 
-	return fd, nil
+	return raw, nil
 }

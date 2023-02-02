@@ -120,7 +120,7 @@ type RunConfig struct {
 	Report    func(body *reportmanager.ReportDef)  `json:"report"`
 }
 
-func (c *Compiler) Run(pgm *goja.Program, cfg *RunConfig) error {
+func (c *Compiler) Run(pgm *goja.Program, cfg *RunConfig, ruleOpt map[string]any) error {
 	v, err := c.babel.runtime.RunProgram(pgm)
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func (c *Compiler) Run(pgm *goja.Program, cfg *RunConfig) error {
 	if !ok {
 		return fmt.Errorf("failed to get exports")
 	}
-	call(goja.Undefined(), c.babel.runtime.ToValue(cfg))
+	call(goja.Undefined(), c.babel.runtime.ToValue(cfg), c.babel.runtime.ToValue(ruleOpt))
 
 	return nil
 }

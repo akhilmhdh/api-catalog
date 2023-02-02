@@ -1,1 +1,8 @@
 title = "hello world"
+
+[rules.body_in_get_req]
+disable = true
+#
+# [plugins.body_in_get_req]
+# file = "https://raw.githubusercontent.com/akhilmhdh/api-catalog/feat/%234/plugins/builtin/openapi/body_in_get_req.js"
+

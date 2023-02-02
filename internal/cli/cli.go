@@ -2,7 +2,6 @@ package cli
 
 import (
 	_ "embed"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -16,17 +15,21 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Plugin API Design Spec Sheet
-// Unique Name
-// tags - string[]
-// scores - Array(Object({tag:string, value: string}}))
-// metadata - Array(Object({ key:string, value:string, type:string }))
-
-type ApiCatalogConfig struct {
-	Title string
+type ApiCatalogRule struct {
+	Options map[string]any
+	Disable bool
 }
 
-var errNotAbsolute = errors.New("path is not absolute")
+type ApiCatalogUserPlugin struct {
+	File    string
+	Options map[string]any
+}
+
+type ApiCatalogConfig struct {
+	Title   string
+	Rules   map[string]ApiCatalogRule
+	Plugins map[string]ApiCatalogUserPlugin
+}
 
 func Run() {
 	// cli flags
@@ -70,7 +73,7 @@ func Run() {
 			}
 
 			var apiSchemaFile map[string]interface{}
-			fd, err := fr.ReadFileAdvanced(apiURL, &apiSchemaFile)
+			raw, err := fr.ReadFileReturnRaw(apiURL, &apiSchemaFile)
 			if err != nil {
 				log.Fatal("Fail to read file\n", err)
 			}
@@ -81,7 +84,7 @@ func Run() {
 			switch apiType {
 			case "openapi":
 				loader := openapi3.NewLoader()
-				doc, err := loader.LoadFromData(fd.Raw)
+				doc, err := loader.LoadFromData(raw)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -94,6 +97,11 @@ func Run() {
 			}
 
 			for rule, p := range pluginManager.Rules {
+				userRuleCfg, ok := config.Rules[rule]
+				if ok && userRuleCfg.Disable {
+					continue
+				}
+
 				// read original code
 				rawCode, err := pluginManager.ReadPluginCode(p.File)
 				if err != nil {
@@ -118,9 +126,48 @@ func Run() {
 				}
 
 				// execute the code
-				err = cmp.Run(code, runCfg)
+				err = cmp.Run(code, runCfg, userRuleCfg.Options)
 				if err != nil {
 					log.Fatal("Error in program: ", err)
+				}
+			}
+
+			// run user defined plugins
+			for rule, p := range config.Plugins {
+				// read original code
+				rawCode, err := pluginManager.ReadPluginCode(p.File)
+				if err != nil {
+					log.Fatal("Failed to : ", err)
+				}
+				// babel transpile
+				code, err := cmp.Transform(rawCode)
+				if err != nil {
+					log.Fatal("Failed to : ", err)
+				}
+
+				// creating config for each rule because we also want rule name of each score and report setter
+				runCfg := &compiler.RunConfig{
+					Type:      apiType,
+					ApiSchema: apiSchemaFile,
+					SetScore: func(category string, score float32) {
+						rm.SetScore(rule, reportmanager.Score{Category: category, Value: score})
+					},
+					Report: func(body *reportmanager.ReportDef) {
+						rm.PushReport(rule, *body)
+					},
+				}
+
+				// execute the code
+				err = cmp.Run(code, runCfg, p.Options)
+				if err != nil {
+					log.Fatal("Error in program: ", err)
+				}
+			}
+
+			for rule, r := range rm {
+				for _, report := range r.Reports {
+					fmt.Println("-----------------------------------------")
+					fmt.Printf("Rule: %s \nMethod: %s\nPath: %s\nMessage: %s\n", rule, report.Method, report.Path, report.Message)
 				}
 			}
 
@@ -131,12 +178,6 @@ func Run() {
 				fmt.Printf("Category: %s, Score: %f \n", score.Category, score.Value)
 			}
 
-			for _, r := range rm {
-				for _, report := range r.Reports {
-					fmt.Println("-----------------------------------------")
-					fmt.Printf("Method: %s\n Path: %s\n Message: %s\n", report.Method, report.Path, report.Message)
-				}
-			}
 		},
 	}
 
