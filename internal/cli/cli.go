@@ -10,7 +10,6 @@ import (
 	"github.com/1-platform/api-catalog/internal/cli/filereader"
 	"github.com/1-platform/api-catalog/internal/cli/pluginmanager"
 	"github.com/1-platform/api-catalog/internal/cli/reportmanager"
-	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -81,13 +80,8 @@ func Run() {
 			// validation
 			switch apiType {
 			case "openapi":
-				loader := openapi3.NewLoader()
-				doc, err := loader.LoadFromData(raw)
-				if err != nil {
-					log.Fatal(err)
-				}
-				if err := doc.Validate(loader.Context); err != nil {
-					log.Fatal(err)
+				if err := OpenAPIValidator(raw, apiSchemaFile); err != nil {
+					log.Fatal("Failed to validate openapi schema/n", err)
 				}
 				// iterate over rule
 			default:

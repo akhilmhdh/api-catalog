@@ -3,9 +3,12 @@ function isDynamicPathFragment(path) {
   return path[0] === "{" && path[path.length - 1] === "}";
 }
 
-export default function (config) {
+export default function (config, options) {
   let numberOfResponses = 0;
   let numbnerOfFalseResponses = 0;
+
+  const dynamicPathWeight = options?.weight || 5;
+  const maxURLAllowedLength = options?.max_url_length || 75;
 
   Object.keys(config.schema.paths).forEach((path) => {
     numberOfResponses++;
@@ -15,11 +18,13 @@ export default function (config) {
     // gives total length
     const resourceLength = resources.reduce(
       (prev, curr) =>
-        isDynamicPathFragment(curr) ? prev + 5 : prev + curr.length,
+        isDynamicPathFragment(curr)
+          ? prev + dynamicPathWeight
+          : prev + curr.length,
       0
     );
 
-    if (resourceLength > 75 || resources > 10) {
+    if (resourceLength > maxURLAllowedLength || resources > 10) {
       numbnerOfFalseResponses++;
 
       // get all methods
@@ -27,7 +32,7 @@ export default function (config) {
         .join(", ")
         .toUpperCase();
       config.report({
-        message: `URL is too big, Resources: ${resources} Length: ${resourceLength} Weight: 75`,
+        message: `URL is too big, Resources: ${resources} Length: ${resourceLength} Weight: ${dynamicPathWeight}`,
         path: path,
         method: methods,
       });

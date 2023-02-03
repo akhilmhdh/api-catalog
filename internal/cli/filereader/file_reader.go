@@ -12,8 +12,8 @@ import (
 	"strings"
 
 	"github.com/goccy/go-json"
+	"github.com/invopop/yaml"
 	"github.com/pelletier/go-toml/v2"
-	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -174,7 +174,18 @@ func (fr *FileReader) ReadFileReturnRaw(location string, data any) ([]byte, erro
 		return nil, err
 	}
 
-	ext := filepath.Ext(location)[1:] // .json -> json
+	ext := filepath.Ext(location)
+	// if file path contains extension it will be parsed ext => .extension
+	// thus satisfy all local reads
+	// now if this is a url without extension at end
+	// for time being i just applied yaml as both json and yaml is supported
+	// need to find a way to accurately detect
+	if ext == "" {
+		ext = "yaml"
+	} else {
+		ext = ext[1:] //.json ->json
+	}
+
 	if err := fr.ParseFile(raw, data, ext); err != nil {
 		return nil, err
 	}

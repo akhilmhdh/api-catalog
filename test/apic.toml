@@ -1,13 +1,19 @@
 title = "hello world"
 
-[rules.url_length]
-disable = true
-
-[rules.req_body_case_checker.options]
-casing = "snakecase"
+# [rules.url_length]
+# disable = true
+#
+[rules.url_similiarity_check.options]
+weight = 0.90
 
 [plugins.rules.test_plugin]
 file = "./test/test_plugin.js"
 
 [plugins.rules.test_plugin.options]
 test_data = "hello"
+
+[rules.url_length.options]
+weight = 8
+
+# [rules.status_code_check.options]
+# allowed_status_codes = [200, 201]

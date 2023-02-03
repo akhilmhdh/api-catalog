@@ -9,5 +9,9 @@ rules:
     file: "unsafe_url_character_check.js"
   url_length:
     file: "url_length.js"
-  req_body_case_checker:
-    file: "req_body_case_checker.js"
+  schema_case_checker:
+    file: "schema_case_checker.js"
+  url_similiarity_check:
+    file: "url_similiarity_check.js"
+    options:
+      weight: 0.8
