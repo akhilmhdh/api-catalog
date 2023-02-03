@@ -49,26 +49,28 @@ export default function (config, options) {
 
   const checkerFn = getCaseCheckerFn(options.casing);
 
-  try {
-    Object.keys(config.schema.paths).forEach((path) => {
-      path
-        .split("/")
-        .filter(Boolean)
-        .forEach((pathFragment) => {
-          numberOfResponses++;
-          if (!checkerFn(removeParenthesis(pathFragment))) {
-            numbnerOfFalseResponses++;
-            config.report({
-              message: `Invalid URL casing`,
-              path: path,
-              method: "Nil",
-            });
-          }
-        });
-    });
-  } catch (err) {
-    console.log(err);
-  }
+  Object.keys(config.schema.paths).forEach((path) => {
+    path
+      .split("/")
+      .filter(Boolean)
+      .forEach((pathFragment) => {
+        numberOfResponses++;
+        if (!checkerFn(removeParenthesis(pathFragment))) {
+          numbnerOfFalseResponses++;
+          // get all methods
+          const methods = Object.keys(config.schema.paths[path])
+            .join(", ")
+            .toUpperCase();
+
+          config.report({
+            message: `Invalid URL casing`,
+            path: path,
+            method: methods,
+          });
+        }
+      });
+  });
+
   const score =
     (Math.max(numberOfResponses - numbnerOfFalseResponses, 0) /
       numberOfResponses) *

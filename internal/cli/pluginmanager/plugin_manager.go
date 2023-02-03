@@ -18,23 +18,32 @@ type Reader interface {
 // Builtin will packaged as zip
 // Installed on runtime
 type PluginManager struct {
-	Rules  map[string]struct{ File string }
-	Reader Reader
+	Rules   map[string]*PluginRule
+	Reader  Reader
+	ApiType string
 }
 
-type PluginConfig struct {
-	Rules []PluginConfigRule `yaml:"rules" `
+// these are the
+type PluginRule struct {
+	File    string
+	Disable bool
+	Options map[string]any
 }
 
-type PluginConfigRule struct {
-	Name string `yaml:"name"`
-	File string `yam:"file"`
+type PluginUserOverride struct {
+	Disable *bool          `json:"omitempty" yaml:"omitempty" toml:"omitempty"`
+	Options map[string]any `json:"omitempty" yaml:"omitempty" toml:"omitempty"`
 }
 
-func New(fr Reader) *PluginManager {
+type PluginConfFile struct {
+	Rules map[string]PluginRule
+}
+
+func New(fr Reader, apiType string) *PluginManager {
 	return &PluginManager{
-		Rules:  map[string]struct{ File string }{},
-		Reader: fr,
+		Rules:   make(map[string]*PluginRule),
+		Reader:  fr,
+		ApiType: apiType,
 	}
 }
 
@@ -49,39 +58,66 @@ func getPluginConfFile(files []fs.DirEntry) (string, error) {
 
 func (p *PluginManager) LoadBuiltinPlugin() error {
 	cwd, _ := os.Getwd()
+
 	// TODO(akhilmhdh): In prod mode this should point to "/.apic/plugins"
-	path := filepath.Clean(filepath.Join(cwd, "./plugins/builtin"))
-	pluginsDir, err := os.ReadDir(path)
+	path := filepath.Clean(filepath.Join(cwd, fmt.Sprintf("./plugins/builtin/%s", p.ApiType)))
+	builtInPlugin, err := os.ReadDir(path)
 	if err != nil {
 		log.Fatal("Failed to open builtin plugins dir: ", err)
 	}
 
-	for _, pluginDir := range pluginsDir {
-		if pluginDir.IsDir() {
-			pluginName := pluginDir.Name()
-			pluginFolder := filepath.Join(path, fmt.Sprintf("/%s", pluginName))
-			pluginFiles, err := os.ReadDir(pluginFolder)
-			if err != nil {
-				return err
-			}
-			// get plugin config file.
-			pluginCfgName, err := getPluginConfFile(pluginFiles)
-			if err != nil {
-				return err
-			}
+	// get plugin config file.
+	pluginCfgName, err := getPluginConfFile(builtInPlugin)
+	if err != nil {
+		return err
+	}
 
-			// load plugin config
-			cfgFilePath := filepath.Join(path, fmt.Sprintf("/%s/%s", pluginName, pluginCfgName))
-			var pluginCfg PluginConfig
-			if err := p.Reader.ReadFile(cfgFilePath, &pluginCfg); err != nil {
-				return err
-			}
+	// load plugin config
+	cfgFilePath := filepath.Join(path, pluginCfgName)
+	var pluginCfg PluginConfFile
+	if err := p.Reader.ReadFile(cfgFilePath, &pluginCfg); err != nil {
+		return err
+	}
 
-			// load up the rules
-			for _, r := range pluginCfg.Rules {
-				jsRuleFile := filepath.Join(pluginFolder, fmt.Sprintf("/%s", r.File))
-				p.Rules[r.Name] = struct{ File string }{File: jsRuleFile}
+	// load up the rules
+	for rule, conf := range pluginCfg.Rules {
+		jsRuleFile := filepath.Join(path, fmt.Sprintf("/%s", conf.File))
+		p.Rules[rule] = &PluginRule{Disable: conf.Disable, File: jsRuleFile, Options: conf.Options}
+	}
+
+	return nil
+}
+
+func (p *PluginManager) LoadUserPlugins(userPlugins PluginConfFile) error {
+	// load up the rules
+	for rule, conf := range userPlugins.Rules {
+		if _, ok := p.Rules[rule]; ok {
+			fmt.Printf("Warning: %s is already defined. Overriding it.\n", rule)
+		}
+
+		p.Rules[rule] = &PluginRule{Disable: conf.Disable, File: conf.File, Options: conf.Options}
+	}
+
+	return nil
+}
+
+func (p *PluginManager) OverrideRules(userOverrides map[string]PluginUserOverride) error {
+	for rule, conf := range userOverrides {
+		if val, ok := p.Rules[rule]; ok {
+			if conf.Disable != nil {
+				val.Disable = *conf.Disable
 			}
+			if conf.Options != nil {
+				for i, r := range conf.Options {
+					if val.Options == nil {
+						val.Options = make(map[string]any, 0)
+					}
+					val.Options[i] = r
+				}
+			}
+			p.Rules[rule] = val
+		} else {
+			fmt.Printf("Overriding rule %s not found\n", rule)
 		}
 	}
 

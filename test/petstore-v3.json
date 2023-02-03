@@ -73,7 +73,7 @@
           "required": true
         },
         "responses": {
-          "600": {
+          "200": {
             "description": "Successful operation",
             "content": {
               "application/xml": {
@@ -396,7 +396,7 @@
         ]
       }
     },
-    "/pet/{petId}/uploadImage": {
+    "/pet/{petId}/uploa$dImage": {
       "post": {
         "tags": ["pet"],
         "summary": "uploads an image",
@@ -452,7 +452,7 @@
         ]
       }
     },
-    "/store/inventory": {
+    "/store/inventory/store/inventory/store/inventory/store/inventory/store/inventory/store/inventory": {
       "get": {
         "tags": ["store"],
         "summary": "Returns pet inventories by status",

@@ -1,8 +1,13 @@
 title = "hello world"
 
-[rules.body_in_get_req]
+[rules.url_length]
 disable = true
-#
-# [plugins.body_in_get_req]
-# file = "https://raw.githubusercontent.com/akhilmhdh/api-catalog/feat/%234/plugins/builtin/openapi/body_in_get_req.js"
 
+[rules.req_body_case_checker.options]
+casing = "snakecase"
+
+[plugins.rules.test_plugin]
+file = "./test/test_plugin.js"
+
+[plugins.rules.test_plugin.options]
+test_data = "hello"

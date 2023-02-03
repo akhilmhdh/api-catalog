@@ -1,7 +1,13 @@
 rules:
-  - name: "status_code_check"
+  status_code_check:
     file: "status_code_check.js"
-  - name: "body_in_get_req"
+  body_in_get_req:
     file: "body_in_get_req.js"
-  - name: "case_checker"
-    file: "case_checker.js"
+  url_case_checker:
+    file: "url_case_checker.js"
+  unsafe_url_character_check:
+    file: "unsafe_url_character_check.js"
+  url_length:
+    file: "url_length.js"
+  req_body_case_checker:
+    file: "req_body_case_checker.js"
