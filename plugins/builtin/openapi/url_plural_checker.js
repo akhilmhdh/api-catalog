@@ -1,4 +1,4 @@
-import { isCasing } from "apic/strings";
+import { isPlural, isSingular } from "apic/strings";
 
 // for dynamic parameters like /pets/{something}
 function isDynamicParams(path) {
@@ -13,14 +13,17 @@ export default function (config, options) {
   let numberOfResponses = 0;
   let numbnerOfFalseResponses = 0;
 
-  const casing = options?.casing || "camelcase";
+  const type = options?.type || "singular";
   const blackListPaths = options?.blacklist_paths || [];
+
+  const checkerFn = type === "singular" ? isSingular : isPlural;
 
   Object.keys(config.schema.paths).forEach((path) => {
     // next iteration
     if (blackListPaths.includes(path)) return;
 
     const pathFragment = path.split("/").filter(Boolean);
+
     for (let i = 0; i < pathFragment.length; i++) {
       // dont need to check dynamic params like /pets/{petID} -> petID is just a variable
       if (isDynamicParams(pathFragment[i])) continue;
@@ -30,7 +33,7 @@ export default function (config, options) {
 
       numberOfResponses++;
       // check casing
-      if (!isCasing(casing, pathFragment[i])) {
+      if (!checkerFn(pathFragment[i])) {
         numbnerOfFalseResponses++;
         // get all methods
         const methods = Object.keys(config.schema.paths[path])
@@ -38,7 +41,7 @@ export default function (config, options) {
           .toUpperCase();
 
         config.report({
-          message: `Invalid URL casing`,
+          message: `URL is is not ${type}`,
           path: path,
           method: methods,
         });

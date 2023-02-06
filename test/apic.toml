@@ -15,5 +15,8 @@ test_data = "hello"
 [rules.url_length.options]
 weight = 8
 
+[rules.url_plural_checker.options]
+blacklist_paths = ["/pet/findByStatuses"]
+
 # [rules.status_code_check.options]
 # allowed_status_codes = [200, 201]

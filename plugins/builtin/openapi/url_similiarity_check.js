@@ -31,10 +31,15 @@ function compareTwoStrings(first, second) {
 export default function (config, options) {
   let numberOfResponses = 0;
   let numbnerOfFalseResponses = 0;
+
   const weight = options?.weight || 0.8;
+  const blackListPaths = options?.blacklist_paths || [];
 
   const paths = Object.keys(config.schema.paths);
   for (let i = 0; i < paths.length; i++) {
+    // skip blacklisted paths
+    if (blackListPaths.includes(paths[i])) continue;
+
     for (let j = paths.length - 1; j >= i; j--) {
       numberOfResponses++;
       if (j !== i) {

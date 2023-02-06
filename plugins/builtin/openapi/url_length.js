@@ -9,8 +9,12 @@ export default function (config, options) {
 
   const dynamicPathWeight = options?.weight || 5;
   const maxURLAllowedLength = options?.max_url_length || 75;
+  const blackListPaths = options?.blacklist_paths || [];
 
   Object.keys(config.schema.paths).forEach((path) => {
+    // next iteration
+    if (blackListPaths.includes(path)) return;
+
     numberOfResponses++;
     const resources = path.split("/").filter(Boolean);
     // the idea is for a given path /pets/{petid}
