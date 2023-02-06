@@ -1,49 +1,16 @@
-const snakeCaseRegex = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
-const camelCaseRegex = /^[a-z]+(?:[A-Z0-9]+[a-z0-9]+[A-Za-z0-9]*)*$/;
-const pascalCaseRegex = /^(?:[A-Z][a-z0-9]+)(?:[A-Z]+[a-z0-9]*)*$/;
-const kebabCaseRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-function isCamelCase(word) {
-  return camelCaseRegex.test(word);
-}
-
-function isPascalCase(word) {
-  return pascalCaseRegex.test(word);
-}
-
-function isSnakeCase(word) {
-  return snakeCaseRegex.test(word);
-}
-
-function isKebabCase(word) {
-  return kebabCaseRegex.test(word);
-}
-
-function getCaseCheckerFn(type) {
-  switch (type) {
-    case "camelcase":
-      return isCamelCase;
-    case "snakecase":
-      return isSnakeCase;
-    case "pascalcase":
-      return isPascalCase;
-    case "kebabcase":
-      return isKebabCase;
-    default:
-      return isCamelCase;
-  }
-}
+import { isCasing } from "apic/strings";
 
 export default function (config, options = {}) {
   let numberOfResponses = 0;
   let numbnerOfFalseResponses = 0;
-  const checkerFn = getCaseCheckerFn(options?.casing);
+  const reqBodyCasing = options?.req_body_casing || "camelcase";
+  const paramsCasing = options?.params_casing || "camelcase";
 
   Object.keys(config.schema.paths).forEach((path) => {
     Object.keys(config.schema.paths[path]).forEach((method) => {
       (config.schema.paths[path][method].parameters || []).forEach((param) => {
         numberOfResponses++;
-        if (!checkerFn(param.name)) {
+        if (!isCasing(reqBodyCasing, param.name)) {
           numbnerOfFalseResponses++;
           config.report({
             message: `Invalid casing for ${param.name} of ${param.in}`,
@@ -59,7 +26,7 @@ export default function (config, options = {}) {
     Object.keys(config.schema.components.schemas[schema].properties).forEach(
       (property) => {
         numberOfResponses++;
-        if (!checkerFn(property)) {
+        if (!isCasing(paramsCasing, property)) {
           numbnerOfFalseResponses++;
           config.report({
             message: `Invalid casing for ${property} of schema ${schema}`,

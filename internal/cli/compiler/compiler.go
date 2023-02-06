@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/1-platform/api-catalog/internal/cli/compiler/modules"
 	"github.com/1-platform/api-catalog/internal/cli/reportmanager"
 	"github.com/dop251/goja"
 )
@@ -22,7 +23,8 @@ var (
 )
 
 type Compiler struct {
-	babel *Babel
+	babel        *Babel
+	ModuleLoader *modules.ModuleLoader
 }
 
 func New() (*Compiler, error) {
@@ -31,7 +33,10 @@ func New() (*Compiler, error) {
 		return nil, err
 	}
 
-	return &Compiler{babel: b}, nil
+	moduleLoader := modules.New(b.runtime)
+	cmp := &Compiler{babel: b, ModuleLoader: moduleLoader}
+
+	return cmp, nil
 }
 
 type Babel struct {

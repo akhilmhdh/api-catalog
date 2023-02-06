@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/dop251/goja v0.0.0-20230128084908-78b980256d04
+	github.com/gertd/go-pluralize v0.2.1
 	github.com/getkin/kin-openapi v0.113.0
 	github.com/goccy/go-json v0.10.0
 	github.com/invopop/yaml v0.1.0

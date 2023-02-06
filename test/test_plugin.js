@@ -1,3 +1,10 @@
+import cmd from "apic/exec";
+
 export default function (cfg, opts) {
-  console.log("hello world", opts?.test_data);
+  try {
+    const output = cmd("date");
+    console.log("hello world", opts?.test_data);
+  } catch (err) {
+    console.log(err);
+  }
 }
