@@ -9,12 +9,22 @@ function isDynamicParams(path) {
   return false;
 }
 
+function stripOfBaseURL(path, baseURLs) {
+  for (let i = 0; i < baseURLs.length; i++) {
+    if (path.startsWith(baseURLs[i])) {
+      return path.slice(baseURLs[i].length);
+    }
+  }
+  return path;
+}
+
 export default function (config, options) {
   let numberOfResponses = 0;
   let numbnerOfFalseResponses = 0;
 
   const type = options?.type || "singular";
   const blackListPaths = options?.blacklist_paths || [];
+  const baseURLs = options?.base_urls || [];
 
   const checkerFn = type === "singular" ? isSingular : isPlural;
 
@@ -22,7 +32,8 @@ export default function (config, options) {
     // next iteration
     if (blackListPaths.includes(path)) return;
 
-    const pathFragment = path.split("/").filter(Boolean);
+    const strippedPath = stripOfBaseURL(path, baseURLs);
+    const pathFragment = strippedPath.split("/").filter(Boolean);
 
     for (let i = 0; i < pathFragment.length; i++) {
       // dont need to check dynamic params like /pets/{petID} -> petID is just a variable
@@ -48,7 +59,6 @@ export default function (config, options) {
       }
     }
   });
-  console.log(numberOfResponses, numbnerOfFalseResponses);
 
   const score =
     (Math.max(numberOfResponses - numbnerOfFalseResponses, 0) /

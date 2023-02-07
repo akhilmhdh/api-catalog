@@ -28,22 +28,34 @@ function compareTwoStrings(first, second) {
   return (2.0 * intersectionSize) / (first.length + second.length - 2);
 }
 
+function stripOfBaseURL(path, baseURLs) {
+  for (let i = 0; i < baseURLs.length; i++) {
+    if (path.startsWith(baseURLs[i])) {
+      return path.slice(baseURLs[i].length);
+    }
+  }
+  return path;
+}
 export default function (config, options) {
   let numberOfResponses = 0;
   let numbnerOfFalseResponses = 0;
 
   const weight = options?.weight || 0.8;
   const blackListPaths = options?.blacklist_paths || [];
+  const baseURLs = options?.base_urls || [];
 
   const paths = Object.keys(config.schema.paths);
   for (let i = 0; i < paths.length; i++) {
     // skip blacklisted paths
-    if (blackListPaths.includes(paths[i])) continue;
+    const pathA = stripOfBaseURL(paths[i], baseURLs);
 
+    if (blackListPaths.includes(paths[i])) continue;
     for (let j = paths.length - 1; j >= i; j--) {
       numberOfResponses++;
       if (j !== i) {
-        const similiarity = compareTwoStrings(paths[i], paths[j]);
+        const pathB = stripOfBaseURL(paths[j], baseURLs);
+
+        const similiarity = compareTwoStrings(pathA, pathB);
         if (similiarity > weight) {
           numbnerOfFalseResponses++;
 

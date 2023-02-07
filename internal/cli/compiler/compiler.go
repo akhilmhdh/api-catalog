@@ -5,7 +5,9 @@ package compiler
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/1-platform/api-catalog/internal/cli/compiler/modules"
@@ -22,19 +24,31 @@ var (
 	errGlobalBabelCode error
 )
 
+var ErrExceptionInPluginCode = errors.New("plugin code error")
+
+type Logger interface {
+	Info(str string)
+	Warn(str string)
+	Error(str string)
+	Log(str string)
+}
+
 type Compiler struct {
 	babel        *Babel
 	ModuleLoader *modules.ModuleLoader
+	logger       Logger
 }
 
-func New() (*Compiler, error) {
-	b, err := newBabel()
+func New(logger Logger) (*Compiler, error) {
+	runtime := NewRuntime()
+	setConsole(runtime, logger)
+	moduleLoader := modules.New(runtime)
+
+	b, err := newBabel(runtime)
 	if err != nil {
 		return nil, err
 	}
-
-	moduleLoader := modules.New(b.runtime)
-	cmp := &Compiler{babel: b, ModuleLoader: moduleLoader}
+	cmp := &Compiler{babel: b, ModuleLoader: moduleLoader, logger: logger}
 
 	return cmp, nil
 }
@@ -45,8 +59,45 @@ type Babel struct {
 	transformer goja.Callable
 }
 
+func NewRuntime() *goja.Runtime {
+	runtime := goja.New()
+	runtime.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
+	return runtime
+}
+
+// to support console logging
+func setConsole(runtime *goja.Runtime, logger Logger) {
+	runtime.Set("console", map[string]func(goja.FunctionCall) goja.Value{
+		"log": func(fc goja.FunctionCall) goja.Value {
+			var sb strings.Builder
+			for _, r := range fc.Arguments {
+				sb.WriteString(r.String())
+			}
+			logger.Log(sb.String())
+			return nil
+		},
+		"error": func(fc goja.FunctionCall) goja.Value {
+			var sb strings.Builder
+			for _, r := range fc.Arguments {
+				sb.WriteString(r.String())
+			}
+			logger.Error(sb.String())
+			return nil
+		},
+		"warn": func(fc goja.FunctionCall) goja.Value {
+			var sb strings.Builder
+			for _, r := range fc.Arguments {
+				sb.WriteString(r.String())
+			}
+			logger.Warn(sb.String())
+			return nil
+		},
+	})
+
+}
+
 // console logger
-func newBabel() (*Babel, error) {
+func newBabel(runtime *goja.Runtime) (*Babel, error) {
 	// load up  and compile babel file only once in a run
 	// for concurrency
 	compileBabelOnce.Do(func() {
@@ -56,21 +107,6 @@ func newBabel() (*Babel, error) {
 	if errGlobalBabelCode != nil {
 		return nil, errGlobalBabelCode
 	}
-
-	// JS console statement support
-	// TODO(akhilmhdh): change this to centralized logger one
-	logger := func(fc goja.FunctionCall) goja.Value {
-		fmt.Println(fc.Arguments)
-		return nil
-	}
-
-	runtime := goja.New()
-	runtime.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
-	runtime.Set("console", map[string]func(goja.FunctionCall) goja.Value{
-		"log":   logger,
-		"error": logger,
-		"warn":  logger,
-	})
 
 	_, err := runtime.RunProgram(globalBabelCode)
 	if err != nil {
@@ -148,7 +184,10 @@ func (c *Compiler) Run(pgm *goja.Program, cfg *RunConfig, ruleOpt map[string]any
 	if !ok {
 		return fmt.Errorf("failed to get exports")
 	}
-	call(goja.Undefined(), c.babel.runtime.ToValue(cfg), c.babel.runtime.ToValue(ruleOpt))
+	_, err = call(goja.Undefined(), c.babel.runtime.ToValue(cfg), c.babel.runtime.ToValue(ruleOpt))
+	if err != nil {
+		return fmt.Errorf("%s%w", err.Error(), ErrExceptionInPluginCode)
+	}
 
 	return nil
 }

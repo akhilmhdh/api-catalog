@@ -17,6 +17,9 @@ weight = 8
 
 [rules.url_plural_checker.options]
 blacklist_paths = ["/pet/findByStatuses"]
+base_urls = ["/api/v1"]
 
 # [rules.status_code_check.options]
 # allowed_status_codes = [200, 201]
+[rules.url_case_checker.options]
+base_urls = ["/api/v1"]

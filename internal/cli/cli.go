@@ -2,6 +2,7 @@ package cli
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -49,8 +50,11 @@ func Run() {
 				log.Fatal("Failed to load filereader\n", err)
 			}
 
+			// setup cli logger
+			logger := NewCliLogger()
+
 			// set up the js script compiler
-			cmp, err := compiler.New()
+			cmp, err := compiler.New(logger)
 			if err != nil {
 				log.Fatal("Error in setting up compiler: ", err)
 			}
@@ -60,10 +64,12 @@ func Run() {
 			if err := pManager.LoadBuiltinPlugin(); err != nil {
 				log.Fatal(err)
 			}
+			logger.Completed("Loaded builtin plugins")
 
 			if err := pManager.LoadUserPlugins(config.Plugins); err != nil {
 				log.Fatal(err)
 			}
+			logger.Completed("Loaded user defined plugins")
 
 			if err := pManager.OverrideRules(config.Rules); err != nil {
 				log.Fatal(err)
@@ -72,24 +78,28 @@ func Run() {
 			var apiSchemaFile map[string]interface{}
 			raw, err := fr.ReadFileReturnRaw(apiURL, &apiSchemaFile)
 			if err != nil {
-				log.Fatal("Fail to read file\n", err)
+				log.Fatal("Failed to read file\n", err)
 			}
+			logger.Completed("Read and parsed API schema file")
 
 			rm := reportmanager.New()
 
 			// validation
 			switch apiType {
 			case "openapi":
-				if err := OpenAPIValidator(raw, apiSchemaFile); err != nil {
+				if err := ValidateOpenAPI(raw, apiSchemaFile, logger); err != nil {
 					log.Fatal("Failed to validate openapi schema/n", err)
 				}
+				logger.Success("OpenAPI validation check passed")
 				// iterate over rule
 			default:
-				log.Fatal("Error api type not supported: ", apiType)
+				logger.Error(fmt.Sprintf("Error api type not supported: %s", apiType))
+				os.Exit(0)
 			}
 
 			for rule, opt := range pManager.Rules {
 				if opt.Disable {
+					logger.Info(fmt.Sprintf("%s has been disabled", rule))
 					continue
 				}
 
@@ -120,24 +130,27 @@ func Run() {
 				// execute the code
 				err = cmp.Run(code, runCfg, opt.Options)
 				if err != nil {
-					log.Fatal("Error in program: ", err)
+					if errors.Is(err, compiler.ErrExceptionInPluginCode) {
+						logger.Error(fmt.Sprintf("%s threw an exception", rule))
+						logger.Error(err.Error())
+					} else {
+						log.Fatal("Failed to: ", err)
+					}
 				}
+				logger.Info(fmt.Sprintf("%s check completed", rule))
 			}
 
+			logger.Title("Reports")
 			for rule, r := range rm {
 				for _, report := range r.Reports {
-					fmt.Println("-----------------------------------------")
-					fmt.Printf("Rule: %s \nMethod: %s\nPath: %s\nMessage: %s\n", rule, report.Method, report.Path, report.Message)
+					logger.Report(rule, report.Method, report.Path, report.Message)
+					logger.Divider()
 				}
 			}
 
+			logger.Title("Score Card")
 			scores := rm.GetTotalScore()
-
-			fmt.Println("-----------------------------------------")
-			for _, score := range scores {
-				fmt.Printf("Category: %s, Score: %f \n", score.Category, score.Value)
-			}
-
+			logger.ScoreCard(scores)
 		},
 	}
 

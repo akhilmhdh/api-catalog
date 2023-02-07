@@ -10,7 +10,7 @@ export default function (config, options = {}) {
     Object.keys(config.schema.paths[path]).forEach((method) => {
       (config.schema.paths[path][method].parameters || []).forEach((param) => {
         numberOfResponses++;
-        if (!isCasing(reqBodyCasing, param.name)) {
+        if (!isCasing(paramsCasing, param.name)) {
           numbnerOfFalseResponses++;
           config.report({
             message: `Invalid casing for ${param.name} of ${param.in}`,
@@ -26,7 +26,7 @@ export default function (config, options = {}) {
     Object.keys(config.schema.components.schemas[schema].properties).forEach(
       (property) => {
         numberOfResponses++;
-        if (!isCasing(paramsCasing, property)) {
+        if (!isCasing(reqBodyCasing, property)) {
           numbnerOfFalseResponses++;
           config.report({
             message: `Invalid casing for ${property} of schema ${schema}`,
