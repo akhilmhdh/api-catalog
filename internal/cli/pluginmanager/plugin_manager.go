@@ -18,9 +18,10 @@ type Reader interface {
 // Builtin will packaged as zip
 // Installed on runtime
 type PluginManager struct {
-	Rules   map[string]*PluginRule
-	Reader  Reader
-	ApiType string
+	Rules     map[string]*PluginRule
+	Reader    Reader
+	ApiType   string
+	IsDevMode bool
 }
 
 // these are the
@@ -39,11 +40,12 @@ type PluginConfFile struct {
 	Rules map[string]PluginRule
 }
 
-func New(fr Reader, apiType string) *PluginManager {
+func New(fr Reader, apiType string, isDevMode bool) *PluginManager {
 	return &PluginManager{
-		Rules:   make(map[string]*PluginRule),
-		Reader:  fr,
-		ApiType: apiType,
+		Rules:     make(map[string]*PluginRule),
+		Reader:    fr,
+		ApiType:   apiType,
+		IsDevMode: isDevMode,
 	}
 }
 
@@ -58,9 +60,16 @@ func getPluginConfFile(files []fs.DirEntry) (string, error) {
 
 func (p *PluginManager) LoadBuiltinPlugin() error {
 	cwd, _ := os.Getwd()
+	var path string
 
-	// TODO(akhilmhdh): In prod mode this should point to "/.apic/plugins"
-	path := filepath.Clean(filepath.Join(cwd, fmt.Sprintf("./plugins/builtin/%s", p.ApiType)))
+	if p.IsDevMode {
+		path = filepath.Clean(filepath.Join(cwd, fmt.Sprintf("./plugins/builtin/%s", p.ApiType)))
+	} else {
+		homeDir, _ := os.UserHomeDir()
+		path = filepath.Clean(filepath.Join(homeDir, fmt.Sprintf(".apic/plugins/builtin/%s", p.ApiType)))
+
+	}
+
 	builtInPlugin, err := os.ReadDir(path)
 	if err != nil {
 		log.Fatal("Failed to open builtin plugins dir: ", err)

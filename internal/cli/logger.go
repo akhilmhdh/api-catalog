@@ -13,13 +13,13 @@ type CliLogger struct{}
 var infoTopic = lipgloss.NewStyle().Foreground(lipgloss.Color("#5fc2ff"))
 var warnTopic = lipgloss.NewStyle().Foreground(lipgloss.Color("#f0ab00"))
 var errorTopic = lipgloss.NewStyle().Foreground(lipgloss.Color("#c9190b"))
-var successTopic = lipgloss.NewStyle().Foreground(lipgloss.Color("#5bc24e"))
+var successTopic = lipgloss.NewStyle().Foreground(lipgloss.Color("#5fff5f"))
 var logTopic = lipgloss.NewStyle().Foreground(lipgloss.Color("#ffffff"))
 
 var subject = lipgloss.NewStyle().PaddingLeft(2)
 var divider = lipgloss.NewStyle().Foreground(lipgloss.Color("#bab8b8")).PaddingLeft(2).Render("-----------------------------------------")
 
-var title = lipgloss.NewStyle().Foreground(lipgloss.Color("#5fff5f")).PaddingLeft(15).Bold(true)
+var title = lipgloss.NewStyle().Foreground(lipgloss.Color("#5fff5f")).PaddingLeft(2).Bold(true)
 
 var reportTemplateTitle = lipgloss.NewStyle().PaddingLeft(2).Bold(true)
 var reportTemplateValue = lipgloss.NewStyle().PaddingLeft(1)
@@ -78,6 +78,14 @@ func (l *CliLogger) Report(rule, method, path, message string) {
 func (l *CliLogger) Title(info string) {
 	l.Divider()
 	fmt.Println(title.Render(info))
+	l.Divider()
+}
+
+func (l *CliLogger) RuleMetrics(passed int, total int) {
+	l.Divider()
+	fmt.Println(infoTopic.Render(fmt.Sprintf("  Total Rules: %d", total)))
+	fmt.Println(successTopic.Render(fmt.Sprintf("  Passed Rules: %d", passed)))
+	fmt.Println(errorTopic.Render(fmt.Sprintf("  Failed Rules: %d", total-passed)))
 	l.Divider()
 }
 

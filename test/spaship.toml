@@ -1,0 +1,9 @@
+[rules.url_plural_checker.options]
+base_urls = ["/api/v1"]
+
+[rules.url_case_checker.options]
+base_urls = ["/api/v1"]
+casing = "kebabcase"
+
+[plugins.rules.test_plugin]
+file = "github.com"

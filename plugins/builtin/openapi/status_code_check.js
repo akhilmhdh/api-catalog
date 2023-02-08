@@ -3,7 +3,6 @@ export default function (config, options) {
   let numbnerOfFalseResponses = 0;
 
   const allowedStatusCodes = options?.allowed_status_codes;
-
   Object.keys(config.schema.paths).forEach((path) => {
     Object.keys(config.schema.paths[path]).forEach((method) => {
       Object.keys(config.schema.paths[path][method].responses).forEach(
