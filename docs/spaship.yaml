@@ -1,0 +1,4 @@
+name: apic-doc
+path: /apic/docs
+single: true
+buildDir: build
