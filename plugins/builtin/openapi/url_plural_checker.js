@@ -28,7 +28,7 @@ export default function (config, options) {
 
   const checkerFn = type === "singular" ? isSingular : isPlural;
 
-  Object.keys(config.schema.paths).forEach((path) => {
+  Object.keys(config.schema.paths || []).forEach((path) => {
     // next iteration
     if (blackListPaths.includes(path)) return;
 

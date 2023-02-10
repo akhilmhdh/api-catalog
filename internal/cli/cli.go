@@ -20,6 +20,7 @@ var apiType string
 var apiSchemaURL string
 var configFilePath string
 var version string
+var exportReportPath string
 
 func Run(apiVersion string) {
 	version = apiVersion
@@ -31,17 +32,19 @@ func Run(apiVersion string) {
 		Run:   runCommand,
 	}
 
-	runCmd.Flags().StringVarP(&apiType, "apiType", "a", "", "Your API Type. Allowed values: rest | graphql")
+	runCmd.Flags().StringVarP(&apiType, "apiType", "a", "", "Your API Type. Allowed values: openapi")
 	runCmd.MarkFlagRequired("apiType")
 
 	runCmd.PersistentFlags().StringVar(&apiSchemaURL, "schema", "", "URL or local file containing spec sheet")
 	runCmd.MarkPersistentFlagRequired("schema")
 
 	runCmd.PersistentFlags().StringVar(&configFilePath, "config", ".", "Path to apic configuration file")
+	runCmd.PersistentFlags().StringVar(&exportReportPath, "export", "", "File path to export data")
 
 	rootCmd := &cobra.Command{
-		Use:   "apic",
-		Short: "One shot cli for your api schema security,performance and quality check",
+		Use:     "apic",
+		Short:   "One shot cli for your api schema security,performance and quality check",
+		Version: version,
 	}
 	rootCmd.AddCommand(runCmd)
 

@@ -44,7 +44,7 @@ export default function (config, options) {
   const blackListPaths = options?.blacklist_paths || [];
   const baseURLs = options?.base_urls || [];
 
-  const paths = Object.keys(config.schema.paths);
+  const paths = Object.keys(config.schema.paths || []);
   for (let i = 0; i < paths.length; i++) {
     // skip blacklisted paths
     const pathA = stripOfBaseURL(paths[i], baseURLs);

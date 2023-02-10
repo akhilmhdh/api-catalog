@@ -11,7 +11,7 @@ export default function (config) {
       numbnerOfFalseResponses++;
 
       // get all methods
-      const methods = Object.keys(config.schema.paths[path])
+      const methods = Object.keys(config.schema.paths[path] || [])
         .join(", ")
         .toUpperCase();
       config.report({

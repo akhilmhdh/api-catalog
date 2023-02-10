@@ -11,7 +11,7 @@ export default function (config, options) {
   const maxURLAllowedLength = options?.max_url_length || 75;
   const blackListPaths = options?.blacklist_paths || [];
 
-  Object.keys(config.schema.paths).forEach((path) => {
+  Object.keys(config.schema.paths || []).forEach((path) => {
     // next iteration
     if (blackListPaths.includes(path)) return;
 

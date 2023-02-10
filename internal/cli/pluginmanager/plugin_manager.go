@@ -7,7 +7,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 )
+
+var snakeCaseRegex = regexp.MustCompile("^[a-z0-9]+(?:_[a-z0-9]+)*$")
 
 type Reader interface {
 	// data contains the container for which data will be loaded
@@ -99,6 +102,12 @@ func (p *PluginManager) LoadBuiltinPlugin() error {
 func (p *PluginManager) LoadUserPlugins(userPlugins PluginConfFile) error {
 	// load up the rules
 	for rule, conf := range userPlugins.Rules {
+		if !snakeCaseRegex.MatchString(rule) {
+			// this is rendering in api-catalog server
+			// so every rule is snakecase then UI can take to format and show in ui
+			log.Fatalf("Rules must be in snakecase. Invalid rule %s", rule)
+		}
+
 		if _, ok := p.Rules[rule]; ok {
 			fmt.Printf("Warning: %s is already defined. Overriding it.\n", rule)
 		}

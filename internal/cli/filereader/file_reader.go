@@ -192,3 +192,41 @@ func (fr *FileReader) ReadFileReturnRaw(location string, data any) ([]byte, erro
 
 	return raw, nil
 }
+
+// to export the given data to any type
+func (fr *FileReader) SaveFile(location string, data any) error {
+	ext := filepath.Ext(location)
+	if ext != "" {
+		ext = ext[1:]
+	}
+
+	var err error
+	var file []byte
+
+	switch ext {
+	case "json":
+		file, err = json.MarshalIndent(data, " ", " ")
+	case "yaml":
+		file, err = yaml.Marshal(data)
+	case "yml":
+		file, err = yaml.Marshal(data)
+	case "toml":
+		file, err = toml.Marshal(data)
+	default:
+		return ErrExtNotSupported
+	}
+
+	if err != nil {
+		return err
+	}
+
+	// just remove file if it exist already
+	os.Remove(location)
+
+	if err = ioutil.WriteFile(location, file, 0644); err != nil {
+		return err
+	}
+
+	return nil
+
+}

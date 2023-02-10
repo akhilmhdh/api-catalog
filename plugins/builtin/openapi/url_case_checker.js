@@ -22,11 +22,11 @@ export default function (config, options) {
   let numberOfResponses = 0;
   let numbnerOfFalseResponses = 0;
 
-  const casing = options?.casing || "camelcase";
+  const casing = options?.casing || "kebabcase";
   const blackListPaths = options?.blacklist_paths || [];
   const baseURLs = options?.base_urls || [];
 
-  Object.keys(config.schema.paths).forEach((path) => {
+  Object.keys(config.schema.paths || []).forEach((path) => {
     // next iteration
     if (blackListPaths.includes(path)) return;
 
@@ -50,7 +50,7 @@ export default function (config, options) {
           .toUpperCase();
 
         config.report({
-          message: `Invalid URL casing`,
+          message: `URL is not ${casing}`,
           path: strippedPath,
           method: methods,
         });

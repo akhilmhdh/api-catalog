@@ -1,28 +1,27 @@
 package reportmanager
 
 type Score struct {
-	Category string  `json:"category"`
-	Value    float32 `json:"value"`
+	Category string  `json:"category" toml:"category"`
+	Value    float32 `json:"value" toml:"value"`
 }
 
 type Headers struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key   string `json:"key" toml:"key"`
+	Value string `json:"value" toml:"value"`
 }
 
 type ReportDef struct {
 	// whether its a warning or error
-	Level    string         `json:"level"`
-	Method   string         `json:"method"`
-	Path     string         `json:"path"`
-	Message  string         `json:"message"`
-	Headers  []Headers      `json:"headers"`
-	Metadata map[string]any `json:"metadata"`
+	Method   string         `json:"method,omitempty" toml:"method,omitempty"`
+	Path     string         `json:"path,omitempty" toml:"path,omitempty"`
+	Message  string         `json:"message" toml:"message"`
+	Headers  []Headers      `json:"headers,omitempty" toml:"headers,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty" toml:"metadata,omitempty"`
 }
 
 type Report struct {
 	Score   Score       `json:"score"`
-	Reports []ReportDef `json:"rules"`
+	Reports []ReportDef `json:"reports,omitempty"`
 }
 
 type ReportManager map[string]Report
