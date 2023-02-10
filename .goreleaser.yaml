@@ -1,0 +1,103 @@
+# This is an example .goreleaser.yml file with some sensible defaults.
+# Make sure to check the documentation at https://goreleaser.com
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+    # you may remove this if you don't need go generate
+    - go generate ./...
+    - ./scripts/cli_auto_completion.sh
+    - go run
+builds:
+  - env:
+      - CGO_ENABLED=0
+    dir: ./cmd/cli
+    ldflags: b-X main.version={{.Version}}
+    goos:
+      - linux
+      - windows
+      - darwin
+archives:
+  - format: tar.gz
+    # this name template makes the OS and Arch compatible with the results of uname.
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - completions/*
+brews:
+  - name: apic
+    tap:
+      owner: 1-platform
+      name: homebrew-tools
+    commit_author:
+      name: "akhilmhdh"
+      email: akhilmhdh@gmail.com
+    homepage: https://github.com/1-platform/api-catalog
+    description: The api catalog cli
+    install: |-
+      bin.install "apic"
+      bash_completion.install "completions/apic.bash" => "apic"
+      zsh_completion.install "completions/apic.zsh" => "_apic"
+      fish_completion.install "completions/apic.fish"
+nfpms:
+  - id: apic
+    package_name: apic
+    vendor: RedHat, Inc
+    homepage: https://github.com/1-platform/api-catalog
+    maintainer: One Platform, Inc
+    description: The api catalog cli
+    license: MIT
+    formats:
+      - rpm
+      - deb
+      - apk
+    bindir: /usr/bin
+    contents:
+      - src: ./completions/apic.bash
+        dst: /usr/share/bash-completion/completions/apic
+        file_info:
+          mode: 0644
+      - src: ./completions/apic.fish
+        dst: /usr/share/fish/vendor_completions.d/apic.fish
+        file_info:
+          mode: 0644
+      - src: ./completions/apic.zsh
+        dst: /usr/share/zsh/vendor-completions/_apic
+        file_info:
+          mode: 0644
+scoop:
+  bucket:
+    owner: 1-platform
+    name: scoop-tools
+  commit_author:
+    name: "akhilmhdh"
+    email: akhilmhdh@gmail.com
+  homepage: https://github.com/1-platform/api-catalog
+  description: "The api catalog cli"
+  license: MIT
+
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+# The lines beneath this are called `modelines`. See `:help modeline`
+# Feel free to remove those if you don't want/use them.
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj

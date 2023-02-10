@@ -20,7 +20,18 @@ import (
 	"github.com/spf13/viper"
 )
 
-// apic run command
+type reportRuleMetrics struct {
+	TotalRules  int `json:"total_rules" toml:"total_rules"`
+	PassedRules int `json:"rules_passed" toml:"rules_passed"`
+}
+
+// final report export data
+type reportExportData struct {
+	Metrics    *reportRuleMetrics           `json:"metrics" toml:"metrics"`
+	RuleReport *reportmanager.ReportManager `json:"reports" toml:"reports"`
+}
+
+// util
 func unzipBuiltinPlugins(zipContent []byte, zipDir string) {
 	reader, _ := zip.NewReader(bytes.NewReader(zipContent), int64(len(zipContent)))
 	for _, f := range reader.File {
@@ -40,6 +51,7 @@ func unzipBuiltinPlugins(zipContent []byte, zipDir string) {
 	}
 }
 
+// some checks on running run cmd
 func bootUpChecks(fr *filereader.FileReader, logger *CliLogger) {
 	var versionFile map[string]string
 	dir, _ := os.UserHomeDir()
@@ -70,6 +82,10 @@ func bootUpChecks(fr *filereader.FileReader, logger *CliLogger) {
 func runCommand(_cmd *cobra.Command, _args []string) {
 	// find config file and load up the config
 	var config ApiCatalogConfig
+
+	// setup cli logger
+	logger := NewCliLogger()
+
 	configExt := filepath.Ext(configFilePath)
 	if configExt == "" {
 		viper.AddConfigPath(configFilePath)
@@ -80,20 +96,21 @@ func runCommand(_cmd *cobra.Command, _args []string) {
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatal("File not found", err)
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			logger.Warn("No confile was found. Using default options")
+		} else {
+			log.Fatal("Failed to read config file\n", err)
+		}
 	}
 
 	if err := viper.Unmarshal(&config); err != nil {
-		log.Fatal("Error in config file", err)
+		log.Fatal("Error in config file\n", err)
 	}
 
 	fr, err := filereader.New()
 	if err != nil {
 		log.Fatal("Failed to load filereader\n", err)
 	}
-
-	// setup cli logger
-	logger := NewCliLogger()
 
 	if version != "development" {
 		bootUpChecks(fr, logger)
@@ -102,7 +119,7 @@ func runCommand(_cmd *cobra.Command, _args []string) {
 	// set up the js script compiler
 	cmp, err := compiler.New(logger)
 	if err != nil {
-		log.Fatal("Error in setting up compiler: ", err)
+		log.Fatal("Error in setting up compiler\n", err)
 	}
 
 	// loading up the plugins and corresponding rules
@@ -134,7 +151,7 @@ func runCommand(_cmd *cobra.Command, _args []string) {
 	switch apiType {
 	case "openapi":
 		if err := ValidateOpenAPI(raw, apiSchemaFile, logger); err != nil {
-			log.Fatal("Failed to validate openapi schema/n", err)
+			log.Fatal("Failed to validate openapi schema\n", err)
 		}
 		logger.Success("OpenAPI validation check passed")
 		// iterate over rule
@@ -143,7 +160,8 @@ func runCommand(_cmd *cobra.Command, _args []string) {
 		os.Exit(0)
 	}
 
-	ruleCounter := 0
+	rulesPassedCounter := 0
+	totalRules := len(pManager.Rules)
 	for rule, opt := range pManager.Rules {
 		if opt.Disable {
 			logger.Info(fmt.Sprintf("%s has been disabled", rule))
@@ -153,7 +171,7 @@ func runCommand(_cmd *cobra.Command, _args []string) {
 		// read original code
 		rawCode, err := pManager.ReadPluginCode(opt.File)
 		if err != nil {
-			log.Fatal("Failed to : ", err)
+			log.Fatal("Failed to read user defined plugin\n", err)
 		}
 
 		// babel transpile
@@ -175,6 +193,10 @@ func runCommand(_cmd *cobra.Command, _args []string) {
 				rm.SetScore(rule, reportmanager.Score{Category: category, Value: score})
 			},
 			Report: func(body *reportmanager.ReportDef) {
+				if body.Message == "" {
+					logger.Error(fmt.Sprintf("%s didn't give message for report", rule))
+					os.Exit(0)
+				}
 				rm.PushReport(rule, *body)
 			},
 		}
@@ -191,10 +213,24 @@ func runCommand(_cmd *cobra.Command, _args []string) {
 			}
 		}
 		logger.Info(fmt.Sprintf("%s check completed", rule))
-		ruleCounter++
+		rulesPassedCounter++
 	}
 
-	logger.RuleMetrics(ruleCounter, len(pManager.Rules))
+	if exportReportPath != "" {
+		logger.Info(fmt.Sprintf("Exporting reports to %s", exportReportPath))
+		expData := reportExportData{
+			Metrics: &reportRuleMetrics{
+				TotalRules:  totalRules,
+				PassedRules: rulesPassedCounter,
+			},
+			RuleReport: &rm,
+		}
+		if err := fr.SaveFile(exportReportPath, &expData); err != nil {
+			log.Fatal("Failed to export report\n", err)
+		}
+	}
+
+	logger.RuleMetrics(rulesPassedCounter, totalRules)
 
 	logger.Title("Reports")
 	for rule, r := range rm {
@@ -207,4 +243,5 @@ func runCommand(_cmd *cobra.Command, _args []string) {
 	logger.Title("Score Card")
 	scores := rm.GetTotalScore()
 	logger.ScoreCard(scores)
+
 }

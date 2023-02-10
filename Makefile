@@ -1,4 +1,4 @@
-version := 0.0.1-alpha
+version := 0.1.0
 
 apc:
 	go run "-X main.version=${version}" cmd/cli/main.go run

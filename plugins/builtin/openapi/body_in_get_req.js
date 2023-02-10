@@ -2,8 +2,8 @@ export default function (config) {
   let numberOfResponses = 0;
   let numbnerOfFalseResponses = 0;
 
-  Object.keys(config.schema.paths).forEach((path) => {
-    Object.keys(config.schema.paths[path]).forEach((method) => {
+  Object.keys(config.schema.paths || []).forEach((path) => {
+    Object.keys(config.schema.paths[path] || []).forEach((method) => {
       if (method === "get") {
         numberOfResponses++;
         if (config.schema.paths[path][method].hasOwnProperty("requestBody")) {
