@@ -58,7 +58,7 @@ func bootUpChecks(fr *filereader.FileReader, logger *CliLogger) {
 
 	// else download the file
 	logger.Info("Outdated or missing builtin plugin. Installing latest one...")
-	builtInZipfile, err := fr.ReadIntoRawBytes("./plugins/builtin.zip")
+	builtInZipfile, err := fr.ReadIntoRawBytes("https://github.com/1-Platform/api-catalog/raw/main/plugins/builtin.zip")
 	if err != nil {
 		log.Fatal(err)
 	}
